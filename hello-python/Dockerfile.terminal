@@ -1,0 +1,52 @@
+# Use Ubuntu as base image
+FROM ubuntu:22.04
+
+# Install ttyd (web terminal), Python and basic tools
+RUN apt-get update && \
+    apt-get install -y \
+    wget \
+    bash \
+    curl \
+    vim \
+    nano \
+    git \
+    python3 \
+    python3-pip && \
+    wget -O /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64 && \
+    chmod +x /usr/local/bin/ttyd && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Google Generative AI SDK (Gemini)
+RUN pip3 install --no-cache-dir google-generativeai
+
+# Copy Gemini CLI script
+COPY gemini_cli.py /usr/local/bin/gemini_cli.py
+RUN chmod +x /usr/local/bin/gemini_cli.py
+
+# Set environment variable for API key (you'll pass it at runtime)
+ENV GEMINI_API_KEY=""
+ENV PYTHONUNBUFFERED=1
+
+# Create a startup script
+RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
+    echo 'echo "==================================="' >> /usr/local/bin/start.sh && \
+    echo 'echo "Welcome to Gemini CLI in Browser!"' >> /usr/local/bin/start.sh && \
+    echo 'echo "==================================="' >> /usr/local/bin/start.sh && \
+    echo 'echo ""' >> /usr/local/bin/start.sh && \
+    echo 'if [ -z "$GEMINI_API_KEY" ]; then' >> /usr/local/bin/start.sh && \
+    echo '    echo "ERROR: GEMINI_API_KEY not set!"' >> /usr/local/bin/start.sh && \
+    echo '    echo "Please run with: docker run -p 7681:7681 -e GEMINI_API_KEY=your-key gemini-terminal"' >> /usr/local/bin/start.sh && \
+    echo '    exec bash' >> /usr/local/bin/start.sh && \
+    echo 'else' >> /usr/local/bin/start.sh && \
+    echo '    echo "Starting Gemini CLI..."' >> /usr/local/bin/start.sh && \
+    echo '    echo ""' >> /usr/local/bin/start.sh && \
+    echo '    exec python3 -u /usr/local/bin/gemini_cli.py' >> /usr/local/bin/start.sh && \
+    echo 'fi' >> /usr/local/bin/start.sh && \
+    chmod +x /usr/local/bin/start.sh
+
+# Expose port 7681 (ttyd default port)
+EXPOSE 7681
+
+# Run ttyd with proper flags for interactive terminal
+CMD ["ttyd", "-W", "-p", "7681", "/usr/local/bin/start.sh"]
